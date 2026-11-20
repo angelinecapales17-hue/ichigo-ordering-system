@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ICHIGO Ordering System</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-wrap">
+     <div class="brand-badge">
+  <img src="/ichigo-logo.png" alt="ICHIGO Ordering System Logo">
+</div>
+      <div>
+        <strong>ICHIGO Ordering System</strong>
+        <div class="muted">Catarman, Northern Samar</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span id="welcome" class="muted"></span>
+      <span id="roleChip" class="role-chip" hidden></span>
+      <button id="logoutBtn" class="small-btn" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main id="authView" class="panel" style="max-width:440px;margin:48px auto">
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button type="button" class="tab small-btn active" data-tab="login">Log in</button>
+      <button type="button" class="tab small-btn" data-tab="register">Create account</button>
+    </div>
+
+    <form id="loginForm" class="form-grid">
+      <label class="wide">Email<input name="email" type="email" required placeholder="you@example.com"></label>
+      <label class="wide">Password<input name="password" type="password" required placeholder="••••••••"></label>
+      <div class="custom-group wide" style="margin:2px 0 4px">
+        <b style="display:block;font-size:0.78rem;letter-spacing:0.06em;color:var(--accent);margin-bottom:8px">ROLE</b>
+        <input type="hidden" name="role" id="loginRoleInput" value="">
+        <div class="pill-row" id="loginRoleButtons">
+          <button type="button" class="small-btn role-pick" data-role="customer">Customer</button>
+          <button type="button" class="small-btn role-pick" data-role="admin">Admin</button>
+          <button type="button" class="small-btn role-pick" data-role="cashier">Cashier</button>
+          <button type="button" class="small-btn role-pick" data-role="rider">Rider</button>
+        </div>
+      </div>
+      <button type="submit" class="primary">Sign in to ICHIGO</button>
+    </form>
+
+  <form id="registerForm" class="form-grid" hidden>
+      <label class="wide">Full name<input name="name" required placeholder="Your full name"></label>
+      <label class="wide">Email<input name="email" type="email" required placeholder="you@example.com"></label>
+      <label class="wide">Password<input name="password" type="password" minlength="8" required placeholder="At least 8 characters"></label>
+      <div class="custom-group wide" style="margin:2px 0 4px">
+        <b style="display:block;font-size:0.78rem;letter-spacing:0.06em;color:var(--accent);margin-bottom:8px">ACCOUNT ROLE</b>
+        <input type="hidden" name="role" id="registerRoleInput" value="customer">
+        <div class="pill-row" id="registerRoleButtons">
+          <button type="button" class="small-btn reg-role-pick active" data-role="customer">Customer</button>
+          <button type="button" class="small-btn reg-role-pick" data-role="admin">Admin</button>
+          <button type="button" class="small-btn reg-role-pick" data-role="cashier">Cashier</button>
+          <button type="button" class="small-btn reg-role-pick" data-role="rider">Rider</button>
+        </div>
+      </div>
+      <button type="submit" class="primary">Register customer account</button>
+    </form>
+
+    <p id="authMessage" class="muted" style="margin-top:12px"></p>
+  </main>
+
+  <div id="appView" class="app-shell" hidden>
+    <aside class="sidebar">
+      <div id="portalLabel" class="sidebar-label">ICHIGO PORTAL</div>
+      <nav id="portalNav" class="nav-stack"></nav>
+    </aside>
+
+    <section class="main-content">
+      <div class="page-banner">
+        <div>
+          <h1 id="portalTitle">Dashboard</h1>
+          <p id="portalSubtitle" class="muted"></p>
+        </div>
+      </div>
+      <div id="dashboard"></div>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
