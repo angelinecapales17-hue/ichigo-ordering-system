@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const secret = process.env.JWT_SECRET || 'development_only_change_me';
@@ -48,7 +48,7 @@ async function publishEvent(topic, userId, orderId, payload) {
 
 app.get('/api/health', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('products').select('id').limit(1);
+    const { error } = await supabase.from('products').select('id').limit(1);
     if (error) throw error;
     res.json({ status: 'ok', database: 'connected' });
   } catch (e) {
@@ -62,11 +62,11 @@ app.post('/api/register', async (req, res) => {
     if (!name || !email || !password) return res.status(400).json({ message: 'Name, email and password are required.' });
     if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
     if (role !== 'customer') return res.status(403).json({ message: 'Admin, cashier and rider accounts must be created by an administrator.' });
-    
+
     const hash = await bcrypt.hash(password, 12);
     const { data, error } = await supabase
       .from('users')
-      .insert({ name, email: email.toLowerCase(), password_hash: hash, role: 'customer' })
+      .insert({ name, email: String(email).trim().toLowerCase(), password_hash: hash, role: 'customer' })
       .select()
       .single();
 
@@ -83,10 +83,10 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password, role } = req.body;
-    const { data: users, error } = await supabase
+    const { data: users } = await supabase
       .from('users')
       .select('*')
-      .eq('email', String(email || '').toLowerCase())
+      .eq('email', String(email || '').trim().toLowerCase())
       .limit(1);
 
     const user = users && users[0];
@@ -128,7 +128,7 @@ app.post('/api/products', auth, allow('admin'), async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('products')
-      .insert({ name, category: category || 'Milk Tea', description: description || '', price, image_url: image_url || '' })
+      .insert({ name, category: category || 'Milk Tea', description: description || '', price: Number(price), image_url: image_url || '' })
       .select()
       .single();
     if (error) throw error;
@@ -142,8 +142,8 @@ app.post('/api/orders', auth, allow('customer', 'cashier'), async (req, res) => 
   try {
     const { fulfillment = 'pickup', customer_name, customer_phone, delivery_address, items, payment_method = 'cash', proof_image } = req.body;
     if (!customer_name || !Array.isArray(items) || !items.length) return res.status(400).json({ message: 'Customer name and at least one item are required.' });
-    
-    const productIds = items.map(i => Number(i.product_id));
+
+    const productIds = [...new Set(items.map(i => Number(i.product_id)).filter(Boolean))];
     const { data: products, error: prodErr } = await supabase
       .from('products')
       .select('id, name, price')
@@ -151,9 +151,9 @@ app.post('/api/orders', auth, allow('customer', 'cashier'), async (req, res) => 
       .in('id', productIds);
 
     if (prodErr) throw prodErr;
-    const map = new Map(products.map(p => [p.id, p]));
+    const map = new Map((products || []).map(p => [Number(p.id), p]));
     let subtotal = 0, safeItems = [];
-    
+
     for (const item of items) {
       const p = map.get(Number(item.product_id));
       const qty = Math.max(1, Math.min(50, Number(item.quantity) || 1));
@@ -161,9 +161,18 @@ app.post('/api/orders', auth, allow('customer', 'cashier'), async (req, res) => 
       const sizeExtra = Number(item.size_extra) || 0, toppingExtra = Number(item.topping_extra) || 0;
       const unit = Number(p.price) + sizeExtra + toppingExtra;
       subtotal += unit * qty;
-      safeItems.push({ product_id: p.id, name: p.name, quantity: qty, size: item.size || 'Regular', sugar: item.sugar || '100%', ice: item.ice || 'Regular', toppings: item.toppings || [], unit_price: unit });
+      safeItems.push({
+        product_id: p.id,
+        name: p.name,
+        quantity: qty,
+        size: item.size || 'Small',
+        sugar: item.sugar || '100%',
+        ice: item.ice || 'No Ice',
+        toppings: Array.isArray(item.toppings) ? item.toppings : [],
+        unit_price: unit
+      });
     }
-    
+
     const total = subtotal;
     const method = String(payment_method).toLowerCase();
     const online = ['gcash', 'maya', 'qrph', 'online_banking'].includes(method);
@@ -236,7 +245,7 @@ app.post('/api/staff', auth, allow('admin'), async (req, res) => {
       return res.status(400).json({ message: 'Name, email, password and a valid staff role are required.' });
     }
     if (String(password).length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters.' });
-    
+
     const hash = await bcrypt.hash(password, 12);
     const { data, error } = await supabase
       .from('users')
@@ -314,23 +323,60 @@ app.put('/api/settings', auth, allow('admin'), async (req, res) => {
 
 app.get('/api/customers', auth, allow('admin'), async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, email, created_at, orders(id, total)')
-      .eq('role', 'customer')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    const formatted = data.map(u => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      created_at: u.created_at,
-      order_count: u.orders ? u.orders.length : 0,
-      lifetime_total: u.orders ? u.orders.reduce((sum, o) => sum + Number(o.total || 0), 0) : 0
-    }));
+    const [{ data: users, error: uErr }, { data: orders, error: oErr }] = await Promise.all([
+      supabase.from('users').select('id, name, email, created_at').eq('role', 'customer').order('created_at', { ascending: false }),
+      supabase.from('orders').select('user_id, total')
+    ]);
+    if (uErr) throw uErr;
+    if (oErr) throw oErr;
+
+    const statsByUser = new Map();
+    for (const o of (orders || [])) {
+      if (!o.user_id) continue;
+      const cur = statsByUser.get(Number(o.user_id)) || { order_count: 0, lifetime_total: 0 };
+      cur.order_count += 1;
+      cur.lifetime_total += Number(o.total || 0);
+      statsByUser.set(Number(o.user_id), cur);
+    }
+
+    const formatted = (users || []).map(u => {
+      const st = statsByUser.get(Number(u.id)) || { order_count: 0, lifetime_total: 0 };
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        created_at: u.created_at,
+        order_count: st.order_count,
+        lifetime_total: st.lifetime_total
+      };
+    });
     res.json(formatted);
   } catch (e) {
     res.status(500).json({ message: 'Could not load customers.' });
+  }
+});
+
+app.get('/api/reports/daily', auth, allow('admin'), async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('total, payment_status, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const map = new Map();
+    for (const o of (data || [])) {
+      const dayKey = new Date(o.created_at).toISOString().slice(0, 10);
+      const cur = map.get(dayKey) || { day: dayKey, paid_sales: 0, orders_count: 0 };
+      cur.orders_count += 1;
+      if (o.payment_status === 'paid') cur.paid_sales += Number(o.total || 0);
+      map.set(dayKey, cur);
+    }
+
+    const rows = [...map.values()].sort((a, b) => a.day.localeCompare(b.day)).slice(-7);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: 'Could not load sales report.' });
   }
 });
 
@@ -363,7 +409,7 @@ app.patch('/api/orders/:id/assign', auth, allow('admin', 'cashier'), async (req,
   try {
     const { data: rider } = await supabase.from('users').select('id').eq('id', riderId).eq('role', 'rider').single();
     if (!rider) return res.status(400).json({ message: 'Choose a valid rider account.' });
-    
+
     const { data, error } = await supabase
       .from('orders')
       .update({ rider_id: riderId, fulfillment: 'delivery', order_status: 'out_for_delivery' })
@@ -423,7 +469,7 @@ app.post('/api/rider/notify/:id', auth, allow('rider'), async (req, res) => {
       .single();
 
     if (!order) return res.status(404).json({ message: 'This active delivery was not found.' });
-    
+
     await publishEvent('rider.arriving', order.user_id, order.id, {
       order_code: order.order_code,
       message: 'Your ICHIGO rider is arriving soon.',
@@ -485,9 +531,8 @@ app.get('/api/events', auth, async (req, res) => {
   try {
     const since = Number(req.query.since) || 0;
     let query = supabase.from('system_events').select('id, topic, user_id, order_id, payload, created_at').gt('id', since).order('id', { ascending: true }).limit(100);
-    
+
     if (req.user.role === 'customer') {
-      // Supabase supports or syntax for filtering user_id = me or user_id is null
       query = query.or(`user_id.eq.${req.user.id},user_id.is.null`);
     }
     const { data, error } = await query;
@@ -505,7 +550,7 @@ app.get('/api/inventory', auth, allow('admin'), async (req, res) => {
       .select('*, suppliers(supplier_name, lead_time_days)')
       .order('item_name', { ascending: true });
     if (error) throw error;
-    
+
     const formatted = items.map(i => ({
       ...i,
       supplier_name: i.suppliers ? i.suppliers.supplier_name : null,
@@ -555,6 +600,44 @@ app.post('/api/inventory', auth, allow('admin'), async (req, res) => {
     res.status(201).json({ message: 'Inventory item added.', id: item.id });
   } catch (e) {
     res.status(500).json({ message: 'Could not add inventory item.' });
+  }
+});
+
+app.post('/api/inventory/:id/restock', auth, allow('admin'), async (req, res) => {
+  const addQty = Number(req.body.quantity);
+  const unitCost = Number(req.body.unit_cost);
+  const note = String(req.body.reference_note || 'Restock purchase').trim();
+  if (!addQty || addQty <= 0) return res.status(400).json({ message: 'Enter a valid restock quantity greater than 0.' });
+
+  try {
+    const { data: item, error: getErr } = await supabase
+      .from('inventory_items')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (getErr || !item) return res.status(404).json({ message: 'Inventory item not found.' });
+
+    const nextQty = Number(item.quantity || 0) + addQty;
+    const nextCost = Number.isFinite(unitCost) && unitCost > 0 ? unitCost : Number(item.unit_cost || 0);
+
+    const { error: updErr } = await supabase
+      .from('inventory_items')
+      .update({ quantity: nextQty, unit_cost: nextCost, updated_at: new Date().toISOString() })
+      .eq('id', req.params.id);
+    if (updErr) throw updErr;
+
+    await supabase.from('stock_movements').insert({
+      inventory_item_id: item.id,
+      movement_type: 'restock',
+      quantity: addQty,
+      unit_cost: nextCost,
+      reference_note: note,
+      created_by: req.user.id
+    });
+
+    res.json({ message: 'Stock updated.' });
+  } catch (e) {
+    res.status(500).json({ message: 'Could not restock item.' });
   }
 });
 
@@ -643,7 +726,7 @@ app.get('/api/admin/summary', auth, allow('admin'), async (req, res) => {
     const { count: totalOrders } = await supabase.from('orders').select('*', { count: 'exact', head: true });
     const { data: paidOrders } = await supabase.from('orders').select('total').eq('payment_status', 'paid');
     const revenue = paidOrders ? paidOrders.reduce((sum, o) => sum + Number(o.total || 0), 0) : 0;
-    
+
     const { count: pending } = await supabase.from('orders').select('*', { count: 'exact', head: true }).in('order_status', ['placed', 'confirmed', 'preparing']);
     const { count: products } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('available', true);
 
@@ -658,7 +741,7 @@ app.get('/api/admin/summary', auth, allow('admin'), async (req, res) => {
   }
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get(/^(?!\/api).*/, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => console.log(`ICHIGO is running at http://localhost:${port} connected to Supabase!`));

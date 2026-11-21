@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ICHIGO Ordering System</title>
   <link rel="stylesheet" href="/style.css" />
+  <style>
+    [hidden] {
+      display: none !important;
+    }
+  </style>
 </head>
 <body>
   <header class="topbar">
@@ -46,12 +51,12 @@
       <button type="submit" class="primary">Sign in to ICHIGO</button>
     </form>
 
-  <form id="registerForm" class="form-grid" hidden>
+    <form id="registerForm" class="form-grid" hidden>
       <label class="wide">Full name<input name="name" required placeholder="Your full name"></label>
       <label class="wide">Email<input name="email" type="email" required placeholder="you@example.com"></label>
       <label class="wide">Password<input name="password" type="password" minlength="8" required placeholder="At least 8 characters"></label>
       <div class="custom-group wide" style="margin:2px 0 4px">
-        <b style="display:block;font-size:0.78rem;letter-spacing:0.06em;color:var(--accent);margin-bottom:8px">ACCOUNT ROLE</b>
+        <b style="display:block;font-size:0.78rem;letter-spacing:0.06em;color:var(--accent);margin-bottom:8px">ACCOUNT ROLE (CUSTOMER ONLY)</b>
         <input type="hidden" name="role" id="registerRoleInput" value="customer">
         <div class="pill-row" id="registerRoleButtons">
           <button type="button" class="small-btn reg-role-pick active" data-role="customer">Customer</button>
@@ -59,6 +64,9 @@
           <button type="button" class="small-btn reg-role-pick" data-role="cashier">Cashier</button>
           <button type="button" class="small-btn reg-role-pick" data-role="rider">Rider</button>
         </div>
+        <small id="staffRoleNotice" class="muted" style="display:block;margin-top:8px;">
+          Customer accounts can be registered here. Admin, cashier, and rider accounts are created inside the Admin Portal's <strong>Staff</strong> tab.
+        </small>
       </div>
       <button type="submit" class="primary">Register customer account</button>
     </form>

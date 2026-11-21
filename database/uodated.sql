@@ -43,7 +43,7 @@ create table if not exists public.orders (
 insert into public.products (name, category, description, price, image_url)
 values
   ('Classic Pearl Milk Tea','Classic Milk Tea','Black tea, creamy milk and chewy pearls.',89,'https://images.unsplash.com/photo-1558857563-b371033873b8?w=800'),
-  ('Brown Sugar Milk Tea','Premium Milk Tea','Rich brown sugar syrup with pearls.',109,'https://images.unsplash.com/photo-1525385133512-2f3nbb8e6f?w=800'),
+  ('Brown Sugar Milk Tea','Premium Milk Tea','Rich brown sugar syrup with pearls.',109,'https://images.unsplash.com/photo-1558857563-b371033873b8?w=800'),
   ('Okinawa Milk Tea','Classic Milk Tea','Toasty Okinawa brown sugar flavor.',99,'https://images.unsplash.com/photo-1558857563-b371033873b8?w=800'),
   ('Matcha Milk Tea','Matcha Series','Smooth green tea with creamy milk.',119,'https://images.unsplash.com/photo-1515823064-d6e0c04616a7?w=800'),
   ('Wintermelon Milk Tea','Classic Milk Tea','Sweet and refreshing wintermelon tea.',99,'https://images.unsplash.com/photo-1558857563-b371033873b8?w=800'),
